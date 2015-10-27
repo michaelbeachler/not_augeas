@@ -43,6 +43,13 @@
 # Copyright 2015 Your name here, unless otherwise noted.
 #
 class not_augeas {
+  $not_augeas_default = {},
+) {
 
+  $not_augeas_hash = hiera_hash('not_augeas', $not_augeas_default)
+
+  if($not_augeas_hash) {
+    create_resources(not_augeas::not_augi, $not_augeas_hash)
+  }
 
 }
