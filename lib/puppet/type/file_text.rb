@@ -17,7 +17,7 @@ Puppet::Type.newtype(:file_text) do
 
   newparam(:match) do
     desc 'An optional ruby regular expression to run against lines matching' +
-         ' the search attribute within the file.' + 
+         ' the search attribute within the file.' +
          ' If BOTH the search string and match ruby regular expression is found,' +
          ' we replace the search text.'
   end
@@ -71,51 +71,77 @@ Puppet::Type.newtype(:file_text) do
   end
 
   def generate
+    Puppet.debug "not_augeas(generate) - I'm in this sub"
+
+    file_opts = Hash.new
+
+    update_file = 0
+
+    not_augeas_catalog_hash = Hash.new
+
     catalog.resources.select do |r|
       if r.is_a?(Puppet::Type.type(:file_text)) && r[:tag] == self[:tag]
-        Puppet.debug "not_augeas(autorequire) - #{r} Resources Path: #{r[:path]}"
-        if r[:match]
-          Puppet.debug "not_augeas(autorequire) - #{r} Resources Match: #{r[:match]}"
+        current_name = r[:name]
+        if not not_augeas_catalog_hash[current_name]
+          not_augeas_catalog_hash[current_name] = Hash.new
+          not_augeas_catalog_hash[current_name].merge!(r)
+        
+          Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Path: #{r[:path]}"
+          if r[:match]
+            Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Match: #{r[:match]}"
+          end
+          Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Search: #{r[:search]}"
+          Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Replace: #{r[:replace]}"
         end
-        Puppet.debug "not_augeas(autorequire) - #{r} Resources Search: #{r[:search]}"
-        Puppet.debug "not_augeas(autorequire) - #{r} Resources Replace: #{r[:replace]}"
       end
     end
 
-    # This sub is magically called ...
-    Puppet.debug "not_augeas(generate) - I'm in this sub"
-    handle_type = handle_type()
-    Puppet.debug "not_augeas(generate) - Handle Type: #{handle_type}"
-    file_opts = Hash.new
-    if handle_type == "handle_search_without_match"
-      Puppet.debug "not_augeas(generate) - Gathering File Options For Handle Type: #{handle_type}"
-      file_opts = handle_search_without_match()
-    elsif handle_type == "handle_search_with_match"
-      Puppet.debug "not_augeas(generate) - Gathering File Options For Handle Type: #{handle_type}"
-      file_opts = handle_search_with_match()
-    else
-      Puppet.debug "not_augeas(generate) - Handle Type Not Found"
+    Puppet.debug "not_augeas(generate) - not_augeas_catalog_hash: #{not_augeas_catalog_hash.inspect}"
+
+    not_augeas_catalog_hash.each do |key, value|
+      if file_opts.empty?
+        file_opts = initial_file_opts
+      end
+
+      Puppet.debug "not_augeas(generate) - Catalog Resource Record: #{value}"
+      r_handle_type = handle_type(value)
+      Puppet.debug "not_augeas(generate) - Handle Type: #{r_handle_type}"
+      if r_handle_type == "handle_search_without_match"
+        Puppet.debug "not_augeas(generate) - Gathering File Options For Handle Type: #{r_handle_type}"
+        file_opts = handle_search_without_match(value, file_opts)
+      elsif r_handle_type == "handle_search_with_match"
+        Puppet.debug "not_augeas(generate) - Gathering File Options For Handle Type: #{r_handle_type}"
+        file_opts = handle_search_with_match(value, file_opts)
+      else
+        Puppet.debug "not_augeas(generate) - Handle Type Not Found"
+      end
+
+      if r_handle_type and file_opts
+        update_file = 1
+      end
+
+      # TEST - Puppet::Type.type(:file).new :path => self[:path], :backup => 'puppet', :ensure => 'file', :content => "This is a test"
     end
 
-    if handle_type and file_opts
-      Puppet.debug "not_augeas(generate) - File Options Inspect: #{file_opts.inspect}"
+    if update_file == 1
+      Puppet.debug "not_augeas(generate) - Updating File With Options: #{file_opts.inspect}"
+      file_opts[:name] = file_opts[:path]
+      Puppet.debug "not_augeas(generate) - File Declaration: #{file_opts[:name]}"
       Puppet::Type.type(:file).new(file_opts)
     end
 
-    # Puppet::Type.type(:file).new :path => self[:path], :backup => 'puppet', :ensure => 'file', :content => "This is a test"
-
   end
 
-  def handle_type
+  def handle_type(r=nil)
     Puppet.debug "not_augeas(handle_type) - I'm in this sub"
     handle = nil
 
-    if self[:match]
-      if self[:replace] and count_matches(match_search, match_regex) > 0
+    if r[:match]
+      if r[:replace] and count_matches(match_search(r), match_regex(r)) > 0
         handle = "handle_search_with_match"
         Puppet.debug "not_augeas(handle_type) - Setting handle to #{handle}"
       end
-    elsif self[:replace] and count_matches(match_search, match_regex) > 0
+    elsif r[:replace] and count_matches(match_search(r), match_regex(r)) > 0
         handle = "handle_search_without_match"
         Puppet.debug "not_augeas(handle_type) - Setting handle to #{handle}"
     end
@@ -126,15 +152,15 @@ Puppet::Type.newtype(:file_text) do
     @lines ||= File.readlines(self[:path])
   end
 
-  def match_regex
-    self[:match] ? Regexp.new(self[:match]) : nil
+  def match_regex(r=nil)
+    r[:match] ? Regexp.new(r[:match]) : nil
   end
 
-  def match_search
-    self[:search] ? Regexp.new(self[:search]) : nil
+  def match_search(r=nil)
+    r[:search] ? Regexp.new(r[:search]) : nil
   end
 
-  def count_matches(search, regex)
+  def count_matches(search=nil, regex=nil)
     Puppet.debug "not_augeas(count_matches) - I'm in this sub"
     my_count = 0
 
@@ -149,73 +175,91 @@ Puppet::Type.newtype(:file_text) do
     return my_count
   end
 
-  def handle_search_without_match()
-    Puppet.debug "not_augeas(handle_search_without_match) - I'm in this sub"
-
+  def initial_file_opts
+    Puppet.debug "not_augeas(initial_file_ops) - Loading File Contents #{self[:path]}"
     file_contents = File.open(self[:path], 'r').read
-    file_contents.gsub!(/#{self[:search]}/, "#{self[:replace]}")
 
     file_opts = Hash.new
-    file_opts[:name] = self[:name]
-    Puppet.debug "not_augeas(handle_search_without_match) - :name => #{file_opts[:name].inspect}"
 
-    file_opts[:content] = file_contents.split('\n')
-    Puppet.debug "not_augeas(handle_search_without_match) - :content => #{file_opts[:content].inspect}"
+    if file_contents
+      file_opts[:name] = self[:name]
+      Puppet.debug "not_augeas(initial_file_ops) - :name => #{file_opts[:name].inspect}"
 
-    file_opts[:replace] = self[:file_content_replace]
-    Puppet.debug "not_augeas(handle_search_without_match) - :replace => #{file_opts[:replace].inspect}"
+      file_opts[:content] = file_contents.split('\n')
+      Puppet.debug "not_augeas(initial_file_ops) - :content => #{file_opts[:content].inspect}"
 
-    file_opts[:ensure] = self[:file_content_ensure]
-    Puppet.debug "not_augeas(handle_search_without_match) - :ensure => #{file_opts[:ensure].inspect}"
+      file_opts[:replace] = self[:file_content_replace]
+      Puppet.debug "not_augeas(initial_file_ops) - :replace => #{file_opts[:replace].inspect}"
 
-    file_opts[:path] = self[:path]
-    Puppet.debug "not_augeas(handle_search_without_match) - :path => #{file_opts[:path].inspect}"
+      file_opts[:ensure] = self[:file_content_ensure]
+      Puppet.debug "not_augeas(initial_file_ops) - :ensure => #{file_opts[:ensure].inspect}"
 
-    file_opts[:backup] = self[:backup]
-    Puppet.debug "not_augeas(handle_search_without_match) - :backup => #{file_opts[:backup].inspect}"
+      file_opts[:path] = self[:path]
+      Puppet.debug "not_augeas(initial_file_ops) - :path => #{file_opts[:path].inspect}"
 
-    file_opts[:backup] = self[:backup]
-    Puppet.debug "not_augeas(handle_search_with_match) - :backup => #{file_opts[:backup].inspect}"
+      file_opts[:backup] = self[:backup]
+      Puppet.debug "not_augeas(initial_file_ops) - :backup => #{file_opts[:backup].inspect}"
 
-    Puppet.debug "not_augeas(handle_search_without_match) - file_opts => #{file_opts.inspect}"
+      Puppet.debug "not_augeas(initial_file_ops) - file_opts => #{file_opts.inspect}"
+    end
 
     return file_opts
   end
 
-  def handle_search_with_match()
-    Puppet.debug "not_augeas(handle_search_with_match) - I'm in this sub"
+  def handle_search_without_match(r=nil, file_opts=nil)
+    Puppet.debug "not_augeas(handle_search_without_match) - I'm in this sub"
 
-    new_file_contents = Array.new
-    lines.each do |line_content|
-      if "#{line_content}" =~ /#{self[:match]}/
-        line_content.gsub!(/#{self[:search]}/, "#{self[:replace]}")
-        new_file_contents << line_content
-      else
+    if not file_opts.nil?
+      new_file_contents = Array.new
+      Puppet.debug "not_augeas(handle_search_without_match) - :content => #{file_opts[:content].inspect}"
+      file_opts[:content].each do |line_content|
+        line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
         new_file_contents << line_content
       end
+      file_contents = new_file_contents.join('')
+
+      file_opts[:content] = file_contents.split('\n')
+      Puppet.debug "not_augeas(handle_search_without_match) - :content => #{file_opts[:content].inspect}"
+
+      Puppet.debug "not_augeas(handle_search_without_match) - file_opts => #{file_opts.inspect}"
     end
-    file_contents = new_file_contents.join('')
 
-    file_opts = Hash.new
-    file_opts[:name] = self[:name]
-    Puppet.debug "not_augeas(handle_search_with_match) - :name => #{file_opts[:name].inspect}"
+    return file_opts
+  end
 
-    file_opts[:content] = file_contents.split('\n')
-    Puppet.debug "not_augeas(handle_search_with_match) - :content => #{file_opts[:content].inspect}"
+  def handle_search_with_match(r=nil, file_opts=nil)
+    Puppet.debug "not_augeas(handle_search_with_match) - I'm in this sub"
 
-    file_opts[:replace] = self[:file_content_replace]
-    Puppet.debug "not_augeas(handle_search_with_match) - :replace => #{file_opts[:replace].inspect}"
+    if not file_opts.nil?
+      new_file_contents = Array.new
+      existing_file_contents = Array.new
 
-    file_opts[:ensure] = self[:file_content_ensure]
-    Puppet.debug "not_augeas(handle_search_with_match) - :ensure => #{file_opts[:ensure].inspect}"
+      if file_opts[:content].count == 1
+        existing_file_contents = file_opts[:content][0].split("\n")
 
-    file_opts[:path] = self[:path]
-    Puppet.debug "not_augeas(handle_search_with_match) - :path => #{file_opts[:path].inspect}"
+        file_line_count = existing_file_contents.count
+        Puppet.debug "not_augeas(handle_search_with_match) - File Line Count => #{file_line_count}"
+      else
+        existing_file_contents file_opts[:content]
+      end
 
-    file_opts[:backup] = self[:backup]
-    Puppet.debug "not_augeas(handle_search_with_match) - :backup => #{file_opts[:backup].inspect}"
+      existing_file_contents.each do |line_content|
+        # Puppet.debug "not_augeas(handle_search_with_match) - Content Line => #{line_content}"
+        # Puppet.debug "not_augeas(handle_search_with_match) - Looking For Match => #{r[:match]}"
+        if line_content =~ /#{r[:match]}/
+          Puppet.debug "not_augeas(handle_search_with_match) - Match Found => #{line_content}"
+          line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
+          new_file_contents << line_content
+        else
+          new_file_contents << line_content
+        end
+      end
+      file_opts[:content] = new_file_contents.join("\n")
 
-    Puppet.debug "not_augeas(handle_search_with_match) - file_opts => #{file_opts.inspect}"
+      Puppet.debug "not_augeas(handle_search_with_match) - :content => #{file_opts[:content].inspect}"
+
+      Puppet.debug "not_augeas(handle_search_with_match) - file_opts => #{file_opts.inspect}"
+    end
 
     return file_opts
   end
