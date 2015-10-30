@@ -216,9 +216,8 @@ Puppet::Type.newtype(:file_text) do
         line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
         new_file_contents << line_content
       end
-      file_contents = new_file_contents.join('')
+      file_opts[:content] = new_file_contents
 
-      file_opts[:content] = file_contents.split('\n')
       Puppet.debug "not_augeas(handle_search_without_match) - :content => #{file_opts[:content].inspect}"
 
       Puppet.debug "not_augeas(handle_search_without_match) - file_opts => #{file_opts.inspect}"
@@ -255,6 +254,9 @@ Puppet::Type.newtype(:file_text) do
         end
       end
       file_opts[:content] = new_file_contents.join("\n")
+      if file_opts[:content] !~ /\n$/
+        file_opts[:content] += "\n"
+      end
 
       Puppet.debug "not_augeas(handle_search_with_match) - :content => #{file_opts[:content].inspect}"
 
