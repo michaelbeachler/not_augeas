@@ -13,6 +13,9 @@ Puppet::Type.newtype(:file_text) do
 
   newparam(:tag) do
     desc "Tag reference to collect all concat_fragment's with the same tag"
+    defaultto do
+      resource.value(:path)
+    end
   end
 
   newparam(:match) do
@@ -86,6 +89,7 @@ Puppet::Type.newtype(:file_text) do
           not_augeas_catalog_hash[current_name] = Hash.new
           not_augeas_catalog_hash[current_name].merge!(r)
         
+          Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Tag: #{r[:tag]}"
           Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Path: #{r[:path]}"
           if r[:match]
             Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Match: #{r[:match]}"
