@@ -3,6 +3,7 @@ define not_augeas::not_augi(
   $replace            = undef,
   $match              = undef,
   $path               = undef,
+  $tag                = undef,
 ) {
 
   file_text { $name:
@@ -10,6 +11,7 @@ define not_augeas::not_augi(
     replace             => $replace,
     match               => $match,
     path                => $path,
+    tag                 => $tag,
   }
 
 }
