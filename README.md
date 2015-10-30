@@ -6,7 +6,6 @@
 2. [Module Description - What the module does and why it is useful](#module-description)
 3. [Setup - The basics of getting started with not_augeas](#setup)
     * [What not_augeas affects](#what-not_augeas-affects)
-    * [Setup requirements](#setup-requirements)
     * [Beginning with not_augeas](#beginning-with-not_augeas)
 4. [Usage - Configuration options and additional functionality](#usage)
 5. [Reference - An under-the-hood peek at what the module is doing and how](#reference)
@@ -15,46 +14,152 @@
 
 ## Overview
 
-A one-maybe-two sentence summary of what the module does/what problem it solves.
-This is your 30 second elevator pitch for your module. Consider including
-OS/Puppet version it works with.
+The not_augeas module lets you modify files from multiple search / replace fragments.
 
 ## Module Description
 
-If applicable, this section should have a brief description of the technology
-the module integrates with and what that integration enables. This section
-should answer the questions: "What does this module *do*?" and "Why would I use
-it?"
-
-If your module has a range of functionality (installation, configuration,
-management, etc.) this is the time to mention it.
+The not_augeas module lets you gather `file_text` resources from your other modules
+and compile those changes into a single resource to pass to puppets native
+File Type.
 
 ## Setup
 
 ### What not_augeas affects
 
-* A list of files, packages, services, or operations that the module will alter,
-  impact, or execute on the system it's installed on.
-* This is a great place to stick any warnings.
-* Can be in list or paragraph form.
-
-### Setup Requirements **OPTIONAL**
-
-If your module requires anything extra before setting up (pluginsync enabled,
-etc.), mention it here.
+* Installs a new Puppet Type named file_text.
 
 ### Beginning with not_augeas
 
-The very basic steps needed for a user to get the module up and running.
+To start using not_augeas you need to create:
+  * One or more file_text resources.
 
-If your most recent release breaks compatibility or requires particular steps
-for upgrading, you may wish to include an additional section here: Upgrading
-(For an example, see http://forge.puppetlabs.com/puppetlabs/firewall).
+A minimal example might be:
+~~~
+  file_text { 'update_tmp_message':
+    search  => 'Test message',
+    replace => 'New Test message',
+    path    => '/tmp/test_message',
+  }
+~~~
+
 
 ## Usage
 
-Put the classes, types, and resources for customizing, configuring, and doing
-the fancy stuff with your module here.
+The not_augeas manifests were provided as a convenience for use with hiera but
+are not required.  You can see from the minimal example above how to use the
+provided file_text puppet type within your own modules.
+
+The examples within the `Usage` section will show configuration using hiera
+leveraging the not_augeas manifests.
+
+Assume we have a file `/tmp/test_message` with the following contents for
+all examples listed within the `Usage`:
+~~~
+This is a test message
+This is the second test message
+Another second test message
+This is Another second test message
+This is the third test message
+~~~
+
+The following hiera configuration:
+~~~
+not_augeas:
+  'update_test_message_1':
+    path: '/tmp/test_message'
+    search: 'message'
+    replace: 'line'
+~~~
+
+Would yield the following results:
+~~~
+This is a test line
+This is the second test line
+Another second test line
+This is Another second test line
+This is the third test line
+~~~
+
+The following hiera configuraiton:
+~~~
+not_augeas:
+  'update_test_message_1':
+    path: '/tmp/test_message'
+    search: 'message'
+    match: 'second'
+    replace: 'line'
+~~~
+
+Would yield the following results:
+~~~
+This is a test message
+This is the second test line
+Another second test line
+This is Another second test line
+This is the third test message
+~~~
+
+The following hiera configuraiton:
+~~~
+not_augeas:
+  'update_test_message_1':
+    path: '/tmp/test_message'
+    search: 'message'
+    match: 'Another second'
+    replace: 'line'
+~~~
+
+Would yield the following results:
+~~~
+This is a test message
+This is the second test message
+Another second test line
+This is Another second test line
+This is the third test message
+~~~
+
+The following hiera configuraiton:
+~~~
+not_augeas:
+  'update_test_message_1':
+    path: '/tmp/test_message'
+    search: 'message'
+    match: '^Another second'
+    replace: 'line'
+~~~
+
+Would yield the following results:
+~~~
+This is a test message
+This is the second test message
+Another second test line
+This is Another second test message
+This is the third test message
+~~~
+
+The following hiera configuraiton:
+~~~
+not_augeas:
+  'update_test_message_1':
+    path: '/tmp/test_message'
+    search: 'This'
+    replace: 'That'
+
+  'update_test_message_2':
+    path: '/tmp/test_message'
+    search: 'message'
+    match: '^Another second'
+    replace: 'line'
+~~~
+
+Would yield the following results:
+~~~
+That is a test message
+That is the second test message
+Another second test line
+That is Another second test message
+That is the third test message
+~~~
 
 ## Reference
 
@@ -65,15 +170,18 @@ with things. (We are working on automating this section!)
 
 ## Limitations
 
-This is where you list OS compatibility, version compatibility, etc.
+This module was tested on Open Source Puppet 4.x.
+Resources with `match` must be done AFTER resources without `match` parameters.
+This is a bug and will be addressed in a future revision.
+
 
 ## Development
 
-Since your module is awesome, other users will want to play with it. Let them
-know what the ground rules for contributing are.
+The plan is to release this module to puppet forge.  If you can help to make
+this module more awesome feel free to reach out to me.
 
-## Release Notes/Contributors/Etc **Optional**
+## Contributors
 
-If you aren't using changelog, put your release notes here (though you should
-consider using changelog). You may also add any additional sections you feel are
-necessary or important to include here. Please use the `## ` header.
+Michael Beachler ([@michaelbeachler](http://twitter.com/michaelbeachler))
+
+[More Contributors](https://github.com/michaelbeachler/not_augeas/graphs/contributors)
