@@ -4,6 +4,7 @@ define not_augeas::not_augi(
   $match              = undef,
   $path               = undef,
   $tag                = undef,
+  $order              = order,
 ) {
 
   file_text { $name:
@@ -12,6 +13,7 @@ define not_augeas::not_augi(
     match               => $match,
     path                => $path,
     tag                 => $tag,
+    order               => $order,
   }
 
 }

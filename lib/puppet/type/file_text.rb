@@ -12,7 +12,7 @@ Puppet::Type.newtype(:file_text) do
   end
 
   newparam(:tag) do
-    desc "Tag reference to collect all concat_fragment's with the same tag"
+    desc "Tag reference to collect all file_text resources with the same tag"
     defaultto do
       resource.value(:path)
     end
@@ -39,6 +39,10 @@ Puppet::Type.newtype(:file_text) do
     defaultto do
       'puppet'
     end
+  end
+
+  newparam(:order) do
+    desc 'The order to apply the changes.  Sometimes order matters.'
   end
 
   newparam(:file_content_replace) do
@@ -79,6 +83,7 @@ Puppet::Type.newtype(:file_text) do
     file_opts = Hash.new
 
     update_file = 0
+    hash_has_order = 0
 
     not_augeas_catalog_hash = Hash.new
 
@@ -94,10 +99,19 @@ Puppet::Type.newtype(:file_text) do
           if r[:match]
             Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Match: #{r[:match]}"
           end
+          if r[:order]
+            Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Order: #{r[:order]}"
+            hash_has_order = 1
+          end
           Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Search: #{r[:search]}"
           Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Replace: #{r[:replace]}"
         end
       end
+    end
+
+    if hash_has_order == 1
+      Puppet.debug "not_augeas(generate) - not_augeas_catalog_hash: Order Detected.  Sorting Hash"
+      not_augeas_catalog_hash = not_augeas_catalog_hash.sort_by{ |key, value| value[:order] }
     end
 
     Puppet.debug "not_augeas(generate) - not_augeas_catalog_hash: #{not_augeas_catalog_hash.inspect}"
@@ -217,13 +231,17 @@ Puppet::Type.newtype(:file_text) do
       new_file_contents = Array.new
       existing_file_contents = Array.new
 
-      existing_file_contents = file_opts[:content].split("\n")
+      if file_opts[:content].is_a?(String)
+        existing_file_contents = file_opts[:content].split("\n")
+      else
+        existing_file_contents = file_opts[:content]
+      end
 
       file_line_count = existing_file_contents.count
       Puppet.debug "not_augeas(handle_search_with_match) - File Line Count => #{file_line_count}"
 
       existing_file_contents.each do |line_content|
-        Puppet.debug "not_augeas(handle_search_without_match) - Content Line => #{line_content}"
+        # Puppet.debug "not_augeas(handle_search_without_match) - Content Line => #{line_content}"
         line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
         new_file_contents << line_content
       end
@@ -247,14 +265,18 @@ Puppet::Type.newtype(:file_text) do
       new_file_contents = Array.new
       existing_file_contents = Array.new
 
-      if file_opts[:content].count == 1
-        existing_file_contents = file_opts[:content][0].split("\n")
-
-        file_line_count = existing_file_contents.count
-        Puppet.debug "not_augeas(handle_search_with_match) - File Line Count => #{file_line_count}"
+      if file_opts[:content].is_a?(Array)
+        if file_opts[:content].count == 1
+          existing_file_contents = file_opts[:content][0].split("\n")
+        else
+          existing_file_contents = file_opts[:content]
+        end
       else
-        existing_file_contents file_opts[:content]
+        existing_file_contents = file_opts[:content][0].split("\n")
       end
+
+      file_line_count = existing_file_contents.count
+      Puppet.debug "not_augeas(handle_search_with_match) - File Line Count => #{file_line_count}"
 
       existing_file_contents.each do |line_content|
         # Puppet.debug "not_augeas(handle_search_with_match) - Content Line => #{line_content}"
