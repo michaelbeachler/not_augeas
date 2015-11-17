@@ -215,12 +215,22 @@ Puppet::Type.newtype(:file_text) do
 
     if not file_opts.nil?
       new_file_contents = Array.new
-      Puppet.debug "not_augeas(handle_search_without_match) - :content => #{file_opts[:content].inspect}"
-      file_opts[:content].each do |line_content|
+      existing_file_contents = Array.new
+
+      existing_file_contents = file_opts[:content].split("\n")
+
+      file_line_count = existing_file_contents.count
+      Puppet.debug "not_augeas(handle_search_with_match) - File Line Count => #{file_line_count}"
+
+      existing_file_contents.each do |line_content|
+        Puppet.debug "not_augeas(handle_search_without_match) - Content Line => #{line_content}"
         line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
         new_file_contents << line_content
       end
-      file_opts[:content] = new_file_contents
+      file_opts[:content] = new_file_contents.join("\n")
+      if file_opts[:content] !~ /\n$/
+        file_opts[:content] += "\n"
+      end
 
       Puppet.debug "not_augeas(handle_search_without_match) - :content => #{file_opts[:content].inspect}"
 
