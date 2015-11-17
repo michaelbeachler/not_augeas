@@ -170,10 +170,7 @@ with things. (We are working on automating this section!)
 
 ## Limitations
 
-This module was tested on Open Source Puppet 4.x.
-Resources with `match` must be done AFTER resources without `match` parameters.
-This is a bug and will be addressed in a future revision.
-
+This module was tested on Open Source Puppet 4.x and has no known issues.
 
 ## Development
 
