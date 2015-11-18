@@ -272,7 +272,8 @@ Puppet::Type.newtype(:file_text) do
           existing_file_contents = file_opts[:content]
         end
       else
-        existing_file_contents = file_opts[:content][0].split("\n")
+        # existing_file_contents = file_opts[:content][0].split("\n")
+        existing_file_contents = file_opts[:content].split("\n")
       end
 
       file_line_count = existing_file_contents.count
