@@ -46,7 +46,8 @@ Puppet::Type.newtype(:file_text) do
   end
 
   newparam(:file_content_replace) do
-    desc 'Whether to replace a file or symlink that already exists on the local system but whose content doesn’t match what the content attribute specifies.'
+    desc 'Whether to replace a file or symlink that already exists on the local system' +
+         'but whose content doesn not match what the content attribute specifies.'
     defaultto do
       true
     end
