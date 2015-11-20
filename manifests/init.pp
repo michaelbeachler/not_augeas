@@ -42,7 +42,7 @@
 #
 # Copyright 2015 Your name here, unless otherwise noted.
 #
-class not_augeas {
+class not_augeas (
   $not_augeas_default = {},
 ) {
 
