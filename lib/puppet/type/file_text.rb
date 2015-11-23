@@ -22,12 +22,21 @@ Puppet::Type.newtype(:file_text) do
     desc 'An optional ruby regular expression to run against lines matching' +
          ' the search attribute within the file.' +
          ' If BOTH the search string and match ruby regular expression is found,' +
+         ' we replace the search text.' +
+         'Note: BOTH match and nomatch expressions are honored if specified.'
+  end
+
+  newparam(:nomatch) do
+    desc 'An optional ruby regular expression to run against lines matching' +
+         ' the search attribute within the file.' +
+         ' If the search string IS found and nomatch ruby regular expression is NOT found,' +
          ' we replace the search text.'
+         'Note: BOTH match and nomatch expressions are honored if specified.'
   end
 
   newparam(:search) do
     desc 'The text to be replaced within the file.  Can be used in conjunction with the' +
-         'match attribute.'
+         'match and/or nomatch attributes.'
   end
 
   newparam(:replace) do
@@ -47,7 +56,7 @@ Puppet::Type.newtype(:file_text) do
 
   newparam(:file_content_replace) do
     desc 'Whether to replace a file or symlink that already exists on the local system' +
-         'but whose content doesn not match what the content attribute specifies.'
+         'but whose content does not match what the content attribute specifies.'
     defaultto do
       true
     end
@@ -99,6 +108,9 @@ Puppet::Type.newtype(:file_text) do
           Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Path: #{r[:path]}"
           if r[:match]
             Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Match: #{r[:match]}"
+          end
+          if r[:nomatch]
+            Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Nomatch: #{r[:nomatch]}"
           end
           if r[:order]
             Puppet.debug "not_augeas(generate :: catalog_resources) - #{r} Resources Order: #{r[:order]}"
@@ -156,11 +168,16 @@ Puppet::Type.newtype(:file_text) do
     handle = nil
 
     if r[:match]
-      if r[:replace] and count_matches(match_search(r), match_regex(r)) > 0
+      if r[:replace] and count_matches(match_search(r), match_regex(r), nil) > 0
         handle = "handle_search_with_match"
         Puppet.debug "not_augeas(handle_type) - Setting handle to #{handle}"
       end
-    elsif r[:replace] and count_matches(match_search(r), match_regex(r)) > 0
+    elsif r[:nomatch]
+      if r[:replace] and count_matches(match_search(r), nil, nomatch_regex(r)) > 0
+        handle = "handle_search_with_match"
+        Puppet.debug "not_augeas(handle_type) - Setting handle to #{handle}"
+      end
+    elsif r[:replace] and count_matches(match_search(r), match_regex(r), nil) > 0
         handle = "handle_search_without_match"
         Puppet.debug "not_augeas(handle_type) - Setting handle to #{handle}"
     end
@@ -175,17 +192,28 @@ Puppet::Type.newtype(:file_text) do
     r[:match] ? Regexp.new(r[:match]) : nil
   end
 
+  def nomatch_regex(r=nil)
+    r[:nomatch] ? Regexp.new(r[:nomatch]) : nil
+  end
+
   def match_search(r=nil)
     r[:search] ? Regexp.new(r[:search]) : nil
   end
 
-  def count_matches(search=nil, regex=nil)
+  def count_matches(search=nil, regex=nil, noregex=nil)
     Puppet.debug "not_augeas(count_matches) - I'm in this sub"
     my_count = 0
 
-    if regex
+    if regex and noregex
+      Puppet.debug "not_augeas(count_matches) - :search defined #{search}, :match defined #{regex}, :nomatch defined #{noregex}"
+      my_count = lines.select{|l| l.match(search) and l.match(regex) and not l.match(noregex)}.size
+    elsif regex
       Puppet.debug "not_augeas(count_matches) - :search defined #{search}, :match defined #{regex}"
       my_count = lines.select{|l| l.match(search) and l.match(regex)}.size
+    elsif noregex
+      Puppet.debug "not_augeas(count_matches) - :search defined #{search}, :nomatch defined #{noregex}"
+      my_count = lines.select{|l| l.match(search) and not l =~ /#{noregex}/}.size
+      Puppet.debug "not_augeas(count_matches) - DEBUG COUNT: #{my_count}"
     elsif search
       Puppet.debug "not_augeas(count_matches) - :search defined #{search}"
       my_count = lines.select{|l| l.match(search)}.size
@@ -283,10 +311,30 @@ Puppet::Type.newtype(:file_text) do
       existing_file_contents.each do |line_content|
         # Puppet.debug "not_augeas(handle_search_with_match) - Content Line => #{line_content}"
         # Puppet.debug "not_augeas(handle_search_with_match) - Looking For Match => #{r[:match]}"
-        if line_content =~ /#{r[:match]}/
-          Puppet.debug "not_augeas(handle_search_with_match) - Match Found => #{line_content}"
-          line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
-          new_file_contents << line_content
+        if #{r[:match]} and #{r[:nomatch]}
+          if line_content =~ /#{r[:match]}/ and line_content !~ /#{r[:nomatch]}/
+            Puppet.debug "not_augeas(handle_search_with_match) - Match With NoMatch Found => #{line_content}"
+            line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
+            new_file_contents << line_content
+          else
+            new_file_contents << line_content
+          end
+        elsif #{r[:match]}
+          if line_content =~ /#{r[:match]}/
+            Puppet.debug "not_augeas(handle_search_with_match) - Match Found => #{line_content}"
+            line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
+            new_file_contents << line_content
+          else
+            new_file_contents << line_content
+          end
+        elsif #{r[:nomatch]}
+          if line_content !~ /#{r[:nomatch]}/
+            Puppet.debug "not_augeas(handle_search_with_match) - NoMatch Found => #{line_content}"
+            line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
+            new_file_contents << line_content
+          else
+            new_file_contents << line_content
+          end
         else
           new_file_contents << line_content
         end
