@@ -213,7 +213,6 @@ Puppet::Type.newtype(:file_text) do
     elsif noregex
       Puppet.debug "not_augeas(count_matches) - :search defined #{search}, :nomatch defined #{noregex}"
       my_count = lines.select{|l| l.match(search) and not l =~ /#{noregex}/}.size
-      Puppet.debug "not_augeas(count_matches) - DEBUG COUNT: #{my_count}"
     elsif search
       Puppet.debug "not_augeas(count_matches) - :search defined #{search}"
       my_count = lines.select{|l| l.match(search)}.size
