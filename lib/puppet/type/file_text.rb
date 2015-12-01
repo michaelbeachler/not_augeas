@@ -310,7 +310,8 @@ Puppet::Type.newtype(:file_text) do
       existing_file_contents.each do |line_content|
         # Puppet.debug "not_augeas(handle_search_with_match) - Content Line => #{line_content}"
         # Puppet.debug "not_augeas(handle_search_with_match) - Looking For Match => #{r[:match]}"
-        if #{r[:match]} and #{r[:nomatch]}
+        if r[:match] and r[:nomatch]
+          Puppet.debug "not_augeas(handle_search_with_match) - Entering Match With NoMatch Block"
           if line_content =~ /#{r[:match]}/ and line_content !~ /#{r[:nomatch]}/
             Puppet.debug "not_augeas(handle_search_with_match) - Match With NoMatch Found => #{line_content}"
             line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
@@ -318,7 +319,8 @@ Puppet::Type.newtype(:file_text) do
           else
             new_file_contents << line_content
           end
-        elsif #{r[:match]}
+        elsif r[:match] and not r[:nomatch]
+          Puppet.debug "not_augeas(handle_search_with_match) - Entering Match Block"
           if line_content =~ /#{r[:match]}/
             Puppet.debug "not_augeas(handle_search_with_match) - Match Found => #{line_content}"
             line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
@@ -326,7 +328,8 @@ Puppet::Type.newtype(:file_text) do
           else
             new_file_contents << line_content
           end
-        elsif #{r[:nomatch]}
+        elsif r[:nomatch] and not r[:match]
+          Puppet.debug "not_augeas(handle_search_with_match) - Entering Nomatch Block"
           if line_content !~ /#{r[:nomatch]}/
             Puppet.debug "not_augeas(handle_search_with_match) - NoMatch Found => #{line_content}"
             line_content.gsub!(/#{r[:search]}/, "#{r[:replace]}")
